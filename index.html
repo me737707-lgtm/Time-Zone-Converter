@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cairo ↔ PST Time Converter</title>
+    <style>
+        /* ============================================
+           CSS Variables & Theme System
+           ============================================ */
+        :root {
+            --bg-primary: #f8fafc;
+            --bg-secondary: #ffffff;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --accent-primary: #6366f1;
+            --accent-secondary: #8b5cf6;
+            --border-color: #e2e8f0;
+            --shadow-color: rgba(99, 102, 241, 0.15);
+            --success-color: #10b981;
+            --error-color: #ef4444;
+            --card-shadow: 0 20px 60px rgba(0, 0, 0, 0.08);
+            --transition-speed: 0.3s;
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --accent-primary: #818cf8;
+            --accent-secondary: #a78bfa;
+            --border-color: #334155;
+            --shadow-color: rgba(129, 140, 248, 0.2);
+            --card-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        /* ============================================
+           Base Styles & Reset
+           ============================================ */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Roboto', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            transition: background var(--transition-speed) ease, color var(--transition-speed) ease;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Animated Background Pattern */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 20% 80%, var(--shadow-color) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(139, 92, 246, 0.1) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ============================================
+           Dark Mode Toggle
+           ============================================ */
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: var(--bg-secondary);
+            border: 2px solid var(--border-color);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            transition: all var(--transition-speed) ease;
+            z-index: 1000;
+            box-shadow: 0 4px 12px var(--shadow-color);
+        }
+
+        .theme-toggle:hover {
+            transform: scale(1.1) rotate(15deg);
+            border-color: var(--accent-primary);
+        }
+
+        .theme-toggle:active {
+            transform: scale(0.95);
+        }
+
+        /* ============================================
+           Main Container & Card
+           ============================================ */
+        .container {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 520px;
+        }
+
+        .card {
+            background: var(--bg-secondary);
+            border-radius: 24px;
+            padding: 40px;
+            box-shadow: var(--card-shadow);
+            border: 1px solid var(--border-color);
+            transition: all var(--transition-speed) ease;
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 30px 80px var(--shadow-color);
+        }
+
+        /* ============================================
+           Header Section
+           ============================================ */
+        .header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        /* ============================================
+           Live Time Display Section
+           ============================================ */
+        .live-times {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .time-box {
+            background: linear-gradient(135deg, var(--bg-primary), var(--bg-secondary));
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+            transition: all var(--transition-speed) ease;
+        }
+
+        .time-box:hover {
+            border-color: var(--accent-primary);
+            transform: translateY(-2px);
+        }
+
+        .time-box .label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+            font-weight: 500;
+        }
+
+        .time-box .icon {
+            font-size: 1.1rem;
+        }
+
+        .time-box .time-value {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .time-box .date-value {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        /* ============================================
+           Converter Form Section
+           ============================================ */
+        .converter-section {
+            margin-bottom: 28px;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-label {
+            display: block;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        .input-wrapper input {
+            width: 100%;
+            padding: 14px 18px 14px 46px;
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            font-size: 1rem;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            transition: all var(--transition-speed) ease;
+            outline: none;
+            font-family: inherit;
+        }
+
+        .input-wrapper input:focus {
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 4px var(--shadow-color);
+        }
+
+        .input-wrapper input:hover:not(:focus) {
+            border-color: var(--accent-secondary);
+        }
+
+        .input-wrapper .input-icon {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 1.2rem;
+            color: var(--text-secondary);
+        }
+
+        /* Error State */
+        .input-wrapper.error input {
+            border-color: var(--error-color);
+            animation: shake 0.4s ease-in-out;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-8px); }
+            75% { transform: translateX(8px); }
+        }
+
+        .error-message {
+            color: var(--error-color);
+            font-size: 0.85rem;
+            margin-top: 8px;
+            display: none;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .error-message.show {
+            display: flex;
+        }
+
+        /* ============================================
+           Buttons
+           ============================================ */
+        .button-group {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 28px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 14px 24px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--transition-speed) ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: white;
+            box-shadow: 0 4px 15px var(--shadow-color);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px var(--shadow-color);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0) scale(0.98);
+        }
+
+        .btn-secondary {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            border: 2px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--accent-primary);
+            background: var(--bg-secondary);
+        }
+
+        .btn-secondary:active {
+            transform: scale(0.98);
+        }
+
+        /* Button Ripple Effect */
+        .btn .ripple {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(0);
+            animation: ripple-effect 0.6s linear;
+            pointer-events: none;
+        }
+
+        @keyframes ripple-effect {
+            to {
+                transform: scale(4);
+                opacity: 0;
+            }
+        }
+
+        /* ============================================
+           Result Output Section
+           ============================================ */
+        .result-section {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(139, 92, 246, 0.08));
+            border: 2px dashed var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            text-align: center;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all var(--transition-speed) ease;
+            display: none;
+        }
+
+        .result-section.visible {
+            display: block;
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .result-section .result-header {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .result-section .result-time {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent-primary);
+            margin-bottom: 8px;
+        }
+
+        .result-section .result-date {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+        }
+
+        .result-section .original-time {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border-color);
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .result-section .original-time strong {
+            color: var(--text-primary);
+        }
+
+        /* Success Animation */
+        .result-section.success {
+            border-style: solid;
+            border-color: var(--success-color);
+            animation: success-pulse 0.5s ease-out;
+        }
+
+        @keyframes success-pulse {
+            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+            100% { box-shadow: 0 0 0 20px rgba(16, 185, 129, 0); }
+        }
+
+        /* ============================================
+           Footer
+           ============================================ */
+        .footer {
+            text-align: center;
+            margin-top: 24px;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        .footer a {
+            color: var(--accent-primary);
+            text-decoration: none;
+            transition: color var(--transition-speed) ease;
+        }
+
+        .footer a:hover {
+            color: var(--accent-secondary);
+            text-decoration: underline;
+        }
+
+        /* ============================================
+           Responsive Design
+           ============================================ */
+        @media (max-width: 480px) {
+            .card {
+                padding: 28px 20px;
+                border-radius: 20px;
+            }
+
+            .header h1 {
+                font-size: 1.4rem;
+            }
+
+            .live-times {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            .time-box .time-value {
+                font-size: 1.1rem;
+            }
+
+            .result-section .result-time {
+                font-size: 1.25rem;
+            }
+
+            .theme-toggle {
+                width: 44px;
+                height: 44px;
+                top: 12px;
+                right: 12px;
+            }
+        }
+
+        /* ============================================
+           Accessibility & Animations
+           ============================================ */
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+
+        .btn:focus-visible,
+        input:focus-visible,
+        .theme-toggle:focus-visible {
+            outline: 3px solid var(--accent-primary);
+            outline-offset: 2px;
+        }
+
+        /* Loading Spinner (for future use) */
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid transparent;
+            border-top-color: currentColor;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            display: inline-block;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Dark Mode Toggle Button -->
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode" title="Toggle dark mode">
+        🌙
+    </button>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Main Card -->
+        <div class="card">
+            <!-- Header -->
+            <header class="header">
+                <h1>🌍 Time Zone Converter</h1>
+                <p>Convert between Cairo (Egypt) and Pacific Time</p>
+            </header>
+
+            <!-- Live Time Display -->
+            <section class="live-times" aria-live="polite">
+                <div class="time-box">
+                    <div class="label">
+                        <span class="icon">🏛️</span>
+                        <span>Cairo, Egypt</span>
+                    </div>
+                    <div class="time-value" id="cairoTime">--:--:--</div>
+                    <div class="date-value" id="cairoDate">Loading...</div>
+                </div>
+                <div class="time-box">
+                    <div class="label">
+                        <span class="icon">🌉</span>
+                        <span>Pacific Time</span>
+                    </div>
+                    <div class="time-value" id="pstTime">--:--:--</div>
+                    <div class="date-value" id="pstDate">Loading...</div>
+                </div>
+            </section>
+
+            <!-- Converter Form -->
+            <section class="converter-section">
+                <div class="input-group">
+                    <label class="input-label" for="datetimeInput">Select Cairo Time</label>
+                    <div class="input-wrapper" id="inputWrapper">
+                        <span class="input-icon">📅</span>
+                        <input 
+                            type="datetime-local" 
+                            id="datetimeInput" 
+                            placeholder="Choose date and time"
+                            aria-describedby="errorMessage"
+                        >
+                    </div>
+                    <div class="error-message" id="errorMessage" role="alert">
+                        ⚠️ Please select a date and time
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="button-group">
+                    <button class="btn btn-primary" id="convertBtn" type="button">
+                        <span>⚡</span>
+                        Convert to PST
+                    </button>
+                    <button class="btn btn-secondary" id="swapBtn" type="button" title="Swap timezones">
+                        <span>🔄</span>
+                        Now
+                    </button>
+                </div>
+            </section>
+
+            <!-- Result Output -->
+            <section class="result-section" id="resultSection" aria-live="polite">
+                <div class="result-header">✨ Converted Time</div>
+                <div class="result-time" id="resultTime">--:--</div>
+                <div class="result-date" id="resultDate">--</div>
+                <div class="original-time">
+                    Original: <strong id="originalCairoTime">--</strong>
+                </div>
+            </section>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Built with ❤️ | Handles daylight saving automatically</p>
+        </footer>
+    </div>
+
+    <script>
+        /**
+         * ============================================
+         * TIMEZONE CONVERTER APPLICATION
+         * ============================================
+         * A clean, modern timezone converter between
+         * Cairo (Africa/Cairo) and PST (America/Los_Angeles)
+         * 
+         * Features:
+         * - Live updating clocks for both timezones
+         * - Manual time conversion
+         * - Dark mode toggle
+         * - Responsive design
+         * - Accessibility support
+         */
+
+        // ============================================
+        // Configuration Constants
+        // ============================================
+        const CONFIG = {
+            CAIRO_TIMEZONE: 'Africa/Cairo',
+            PST_TIMEZONE: 'America/Los_Angeles',
+            UPDATE_INTERVAL: 1000, // Update live times every second
+            DATE_FORMAT_OPTIONS: {
+                weekday: 'short',
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            },
+            TIME_FORMAT_OPTIONS: {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+            },
+            FULL_FORMAT_OPTIONS: {
+                weekday: 'short',
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            }
+        };
+
+        // ============================================
+        // DOM Element References
+        // ============================================
+        const elements = {
+            themeToggle: document.getElementById('themeToggle'),
+            cairoTime: document.getElementById('cairoTime'),
+            cairoDate: document.getElementById('cairoDate'),
+            pstTime: document.getElementById('pstTime'),
+            pstDate: document.getElementById('pstDate'),
+            datetimeInput: document.getElementById('datetimeInput'),
+            convertBtn: document.getElementById('convertBtn'),
+            swapBtn: document.getElementById('swapBtn'),
+            resultSection: document.getElementById('resultSection'),
+            resultTime: document.getElementById('resultTime'),
+            resultDate: document.getElementById('resultDate'),
+            originalCairoTime: document.getElementById('originalCairoTime'),
+            inputWrapper: document.getElementById('inputWrapper'),
+            errorMessage: document.getElementById('errorMessage')
+        };
+
+        // ============================================
+        // Utility Functions
+        // ============================================
+
+        /**
+         * Format a Date object according to specified options and timezone
+         * @param {Date} date - The date object to format
+         * @param {Object} options - Intl.DateTimeFormat options
+         * @param {string} timezone - Target timezone string
+         * @returns {string} Formatted date/time string
+         */
+        function formatDate(date, options, timezone) {
+            try {
+                return new Intl.DateTimeFormat('en-US', {
+                    ...options,
+                    timeZone: timezone
+                }).format(date);
+            } catch (error) {
+                console.error('Date formatting error:', error);
+                return 'Invalid date';
+            }
+        }
+
+        /**
+         * Get the current time in a specific timezone
+         * @param {string} timezone - Target timezone
+         * @returns {Object} Object containing formatted time and date strings
+         */
+        function getCurrentTimeInTimezone(timezone) {
+            const now = new Date();
+            return {
+                time: formatDate(now, CONFIG.TIME_FORMAT_OPTIONS, timezone),
+                date: formatDate(now, CONFIG.DATE_FORMAT_OPTIONS, timezone)
+            };
+        }
+
+        /**
+         * Convert datetime from one timezone to another
+         * @param {string} inputDatetime - ISO format datetime string
+         * @param {string} fromTimezone - Source timezone
+         * @param {string} toTimezone - Target timezone
+         * @returns {Object} Converted time information
+         */
+        function convertTimezone(inputDatetime, fromTimezone, toTimezone) {
+            // Parse the input datetime (assumed to be in source timezone)
+            const inputDate = new Date(inputDatetime);
+            
+            if (isNaN(inputDate.getTime())) {
+                throw new Error('Invalid date input');
+            }
+
+            return {
+                convertedTime: formatDate(inputDate, CONFIG.TIME_FORMAT_OPTIONS, toTimezone),
+                convertedDate: formatDate(inputDate, CONFIG.DATE_FORMAT_OPTIONS, toTimezone),
+                originalFormatted: formatDate(inputDate, CONFIG.FULL_FORMAT_OPTIONS, fromTimezone),
+                fullConverted: formatDate(inputDate, CONFIG.FULL_FORMAT_OPTIONS, toTimezone)
+            };
+        }
+
+        /**
+         * Show error state on input
+         * @param {string} message - Error message to display
+         */
+        function showError(message) {
+            elements.inputWrapper.classList.add('error');
+            elements.errorMessage.textContent = `⚠️ ${message}`;
+            elements.errorMessage.classList.add('show');
+            
+            // Remove error state after animation completes
+            setTimeout(() => {
+                elements.inputWrapper.classList.remove('error');
+            }, 400);
+        }
+
+        /**
+         * Clear error state
+         */
+        function clearError() {
+            elements.inputWrapper.classList.remove('error');
+            elements.errorMessage.classList.remove('show');
+        }
+
+        /**
+         * Show conversion result with animation
+         * @param {Object} result - Conversion result object
+         */
+        function showResult(result) {
+            elements.resultTime.textContent = result.convertedTime;
+            elements.resultDate.textContent = result.convertedDate;
+            elements.originalCairoTime.textContent = result.originalFormatted;
+            
+            elements.resultSection.classList.add('visible', 'success');
+            
+            // Remove success animation class after it completes
+            setTimeout(() => {
+                elements.resultSection.classList.remove('success');
+            }, 500);
+        }
+
+        /**
+         * Hide result section
+         */
+        function hideResult() {
+            elements.resultSection.classList.remove('visible', 'success');
+        }
+
+        // ============================================
+        // Live Clock Updates
+        // ============================================
+
+        /**
+         * Update both live time displays
+         * This runs every second to show real-time clocks
+         */
+        function updateLiveTimes() {
+            // Get current time in Cairo
+            const cairoCurrent = getCurrentTimeInTimezone(CONFIG.CAIRO_TIMEZONE);
+            elements.cairoTime.textContent = cairoCurrent.time;
+            elements.cairoDate.textContent = cairoCurrent.date;
+
+            // Get current time in PST
+            const pstCurrent = getCurrentTimeInTimezone(CONFIG.PST_TIMEZONE);
+            elements.pstTime.textContent = pstCurrent.time;
+            elements.pstDate.textContent = pstCurrent.date;
+        }
+
+        // ============================================
+        // Event Handlers
+        // ============================================
+
+        /**
+         * Handle convert button click
+         */
+        function handleConvert() {
+            clearError();
+            
+            const inputValue = elements.datetimeInput.value;
+
+            // Validate input
+            if (!inputValue) {
+                showError('Please select a date and time');
+                elements.datetimeInput.focus();
+                return;
+            }
+
+            try {
+                // Perform the conversion
+                const result = convertTimezone(
+                    inputValue,
+                    CONFIG.CAIRO_TIMEZONE,
+                    CONFIG.PST_TIMEZONE
+                );
+
+                // Display the result
+                showResult(result);
+
+                // Add button feedback animation
+                elements.convertBtn.style.transform = 'scale(0.95)';
+                setTimeout(() => {
+                    elements.convertBtn.style.transform = '';
+                }, 150);
+
+            } catch (error) {
+                console.error('Conversion error:', error);
+                showError('Failed to convert time. Please try again.');
+            }
+        }
+
+        /**
+         * Handle "Now" button click - sets input to current Cairo time
+         */
+        function handleSetNow() {
+            const now = new Date();
+            
+            // Format as datetime-local compatible string in local timezone
+            // We'll set it to current time and let the user know it's Cairo time
+            const offset = now.getTimezoneOffset();
+            const cairoOffset = now.toLocaleString('en-US', { timeZone: CONFIG.CAIRO_TIMEZONE, timeZoneName: 'short' });
+            
+            // Simply use current local time as reference (user understands they're selecting Cairo time)
+            const localISOString = new Date(now.getTime() - (offset * 60000)).toISOString().slice(0, 16);
+            elements.datetimeInput.value = localISOString;
+            
+            // Auto-trigger conversion
+            handleConvert();
+
+            // Visual feedback
+            elements.swapBtn.style.transform = 'rotate(360deg)';
+            setTimeout(() => {
+                elements.swapBtn.style.transform = '';
+            }, 300);
+        }
+
+        /**
+         * Toggle dark/light theme
+         */
+        function handleThemeToggle() {
+            const body = document.body;
+            const isDark = body.getAttribute('data-theme') === 'dark';
+            
+            if (isDark) {
+                body.removeAttribute('data-theme');
+                elements.themeToggle.textContent = '🌙';
+                localStorage.setItem('theme', 'light');
+            } else {
+                body.setAttribute('data-theme', 'dark');
+                elements.themeToggle.textContent = '☀️';
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+
+        /**
+         * Initialize theme from saved preference or system preference
+         */
+        function initializeTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+            if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+                document.body.setAttribute('data-theme', 'dark');
+                elements.themeToggle.textContent = '☀️';
+            }
+        }
+
+        /**
+         * Add ripple effect to buttons
+         * @param {Event} event - Click event
+         */
+        function createRipple(event) {
+            const button = event.currentTarget;
+            const rect = button.getBoundingClientRect();
+            const size = Math.max(rect.width, rect.height);
+            const x = event.clientX - rect.left - size / 2;
+            const y = event.clientY - rect.top - size / 2;
+
+            const ripple = document.createElement('span');
+            ripple.className = 'ripple';
+            ripple.style.width = ripple.style.height = `${size}px`;
+            ripple.style.left = `${x}px`;
+            ripple.style.top = `${y}px`;
+
+            button.appendChild(ripple);
+
+            setTimeout(() => ripple.remove(), 600);
+        }
+
+        // ============================================
+        // Initialization
+        // ============================================
+
+        /**
+         * Initialize the application
+         */
+        function init() {
+            // Initialize theme
+            initializeTheme();
+
+            // Start live clock updates
+            updateLiveTimes();
+            setInterval(updateLiveTimes, CONFIG.UPDATE_INTERVAL);
+
+            // Set default input value to current time (optional - commented out)
+            // const now = new Date();
+            // const offset = now.getTimezoneOffset();
+            // elements.datetimeInput.value = new Date(now.getTime() - (offset * 60000)).toISOString().slice(0, 16);
+
+            // Attach event listeners
+            elements.themeToggle.addEventListener('click', handleThemeToggle);
+            elements.convertBtn.addEventListener('click', handleConvert);
+            elements.swapBtn.addEventListener('click', handleSetNow);
+            
+            // Add ripple effects to buttons
+            document.querySelectorAll('.btn').forEach(btn => {
+                btn.addEventListener('click', createRipple);
+            });
+
+            // Allow Enter key to trigger conversion
+            elements.datetimeInput.addEventListener('keypress', (event) => {
+                if (event.key === 'Enter') {
+                    handleConvert();
+                }
+            });
+
+            // Clear error when user starts typing
+            elements.datetimeInput.addEventListener('input', clearError);
+
+            // Log initialization
+            console.log('✅ Timezone Converter initialized successfully!');
+            console.log(`📍 Converting: ${CONFIG.CAIRO_TIMEZONE} → ${CONFIG.PST_TIMEZONE}`);
+        }
+
+        // Run initialization when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    </script>
+</body>
+</html>
